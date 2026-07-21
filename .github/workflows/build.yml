@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: macos-universal, os: macos-latest, cross-target: x86_64-apple-darwin;aarch64-apple-darwin }
+          - { name: macos-universal, os: macos-latest }
           - { name: windows,         os: windows-latest }
           - { name: linux,           os: ubuntu-22.04 }
     name: Build ${{ matrix.name }}
@@ -33,8 +33,12 @@ jobs:
             libxcursor-dev libxkbcommon-dev libxcb-shape0-dev libxcb-xfixes0-dev
 
       - uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.cross-target }}
+
+      - name: Install macOS universal targets
+        if: matrix.name == 'macos-universal'
+        run: |
+          rustup target add x86_64-apple-darwin
+          rustup target add aarch64-apple-darwin
 
       - uses: Swatinem/rust-cache@v2
 
