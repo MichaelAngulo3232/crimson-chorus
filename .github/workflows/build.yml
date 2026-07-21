@@ -1,0 +1,59 @@
+name: Build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: macos-universal, os: macos-latest, cross-target: aarch64-apple-darwin }
+          - { name: windows,         os: windows-latest }
+          - { name: linux,           os: ubuntu-22.04 }
+    name: Build ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libgl-dev libjack-jackd2-dev \
+            libx11-xcb-dev libxcb1-dev libxcb-dri2-0-dev libxcb-icccm4-dev \
+            libxcursor-dev libxkbcommon-dev libxcb-shape0-dev libxcb-xfixes0-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.cross-target }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Package plugins
+        run: |
+          runner_name=${{ matrix.name }}
+          if [[ $runner_name = 'macos-universal' ]]; then
+            export MACOSX_DEPLOYMENT_TARGET=10.13
+            cargo xtask bundle-universal chorus --release
+          else
+            cargo xtask bundle chorus --release
+          fi
+
+      - name: Prepare artifact
+        run: |
+          mkdir -p out
+          cp -R target/bundled/* out/ 2>/dev/null || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: crimson-${{ matrix.name }}
+          path: out/*

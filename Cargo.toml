@@ -1,0 +1,30 @@
+[workspace]
+resolver = "2"
+members = ["xtask"]
+
+[package]
+name = "chorus"
+version = "1.0.0"
+edition = "2024"
+authors = ["Pyfessional"]
+license = "GPL-3.0-or-later"
+description = "Crimson — a warm metallic vocal chorus plugin written in Rust"
+repository = "https://github.com/miclo/crimson-chorus"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+nih_plug = { git = "https://github.com/robbert-vdh/nih-plug.git", features = ["assert_process_allocs"] }
+nih_plug_egui = { git = "https://github.com/robbert-vdh/nih-plug.git" }
+image = "0.24"
+
+[profile.release]
+lto = "thin"
+strip = "symbols"
+opt-level = 3
+
+[profile.profiling]
+inherits = "release"
+debug = true
+strip = "none"
