@@ -9,7 +9,7 @@ edition = "2024"
 authors = ["Pyfessional"]
 license = "GPL-3.0-or-later"
 description = "Crimson — a warm metallic vocal chorus plugin written in Rust"
-repository = "https://github.com/miclo/crimson-chorus"
+repository = "https://github.com/MichaelAngulo3232/crimson-chorus"
 
 [lib]
 crate-type = ["cdylib"]
