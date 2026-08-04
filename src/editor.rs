@@ -75,12 +75,12 @@ fn param_knob<P: Param>(ui: &mut egui::Ui, setter: &ParamSetter, param: &P, labe
         let painter = ui.painter();
 
         painter.circle_filled(center, radius * 0.74, PANEL);
-        painter.circle_stroke(center, radius * 0.74, egui::Stroke::new(1.0, TRACK));
+        painter.circle_stroke(center, radius * 0.74, egui::Stroke::new(1.0_f32, TRACK));
 
         // full track
         painter.add(egui::Shape::line(
             arc_points(center, radius, START, SWEEP, 48),
-            egui::Stroke::new(3.0, TRACK),
+            egui::Stroke::new(3.0_f32, TRACK),
         ));
 
         // value arc
@@ -92,7 +92,7 @@ fn param_knob<P: Param>(ui: &mut egui::Ui, setter: &ParamSetter, param: &P, labe
             };
             painter.add(egui::Shape::line(
                 arc_points(center, radius, START, SWEEP * value, 48),
-                egui::Stroke::new(3.0, color),
+                egui::Stroke::new(3.0_f32, color),
             ));
         }
 
@@ -104,7 +104,7 @@ fn param_knob<P: Param>(ui: &mut egui::Ui, setter: &ParamSetter, param: &P, labe
                 center + dir * (radius * 0.32),
                 center + dir * (radius * 0.66),
             ],
-            egui::Stroke::new(2.0, WHITE),
+            egui::Stroke::new(2.0_f32, WHITE),
         );
 
         ui.add_space(6.0);
@@ -147,7 +147,7 @@ pub(crate) fn create(
         |ctx, _| {
             let mut visuals = egui::Visuals::dark();
             visuals.selection.bg_fill = BURGUNDY;
-            visuals.selection.stroke = egui::Stroke::new(1.0, CRIMSON_LIGHT);
+            visuals.selection.stroke = egui::Stroke::new(1.0_f32, CRIMSON_LIGHT);
             ctx.set_visuals(visuals);
         },
         // update: runs every frame
