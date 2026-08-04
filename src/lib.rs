@@ -180,8 +180,7 @@ struct Chorus {
 impl Default for Chorus {
     fn default() -> Self {
         let default_sr = 48_000.0_f32;
-        let max_delay_samples =
-            ((BASE_DELAY_SECONDS + MAX_MOD_DEPTH_SECONDS) * default_sr).ceil() as usize + 2;
+        let max_delay_samples = ((BASE_DELAY_SECONDS + MAX_MOD_DEPTH_SECONDS) * default_sr).ceil() as usize + 2;
         Self {
             voices: vec![ChorusVoice::new(max_delay_samples); 2],
             lfo_phase: 0.0,
@@ -311,18 +310,15 @@ impl Plugin for Chorus {
                 let unipolar = 0.5 * (lfo + 1.0);
 
                 // Delay rides base..base+depth: a true chorus, never through-zero.
-                let mod_delay =
-                    (BASE_DELAY_SECONDS + depth * unipolar) * self.sample_rate;
+                let mod_delay = (BASE_DELAY_SECONDS + depth * unipolar) * self.sample_rate;
 
                 // Cutoff sweeps geometrically (perceptually even), brightest at
                 // the longest delay — deliberately the opposite of vintage BBD.
                 // For the vintage direction: powf(1.0 - unipolar).
                 // Deriving the coefficient from Hz + sample_rate keeps the
                 // voicing identical across host sample rates.
-                let cutoff_hz =
-                    MIN_CUTOFF_HZ * (MAX_CUTOFF_HZ / MIN_CUTOFF_HZ).powf(unipolar);
-                let smooth_amount =
-                    1.0 - (-std::f32::consts::TAU * cutoff_hz / self.sample_rate).exp();
+                let cutoff_hz = MIN_CUTOFF_HZ * (MAX_CUTOFF_HZ / MIN_CUTOFF_HZ).powf(unipolar);
+                let smooth_amount = 1.0 - (-std::f32::consts::TAU * cutoff_hz / self.sample_rate).exp();
 
                 let dry = *sample;
                 let wet = self.voices[ch].process_sample(dry, mod_delay, smooth_amount, hp_amount, feedback);
