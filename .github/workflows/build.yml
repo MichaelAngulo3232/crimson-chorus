@@ -11,8 +11,32 @@ defaults:
   run:
     shell: bash
 
+permissions:
+  contents: write
+
 jobs:
+  check-version:
+    name: Check version consistency
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag must match Cargo.toml
+        run: |
+          cargo_version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          tag_version="${GITHUB_REF_NAME#v}"
+          echo "Cargo.toml: $cargo_version"
+          echo "Git tag:    $tag_version"
+          if [ "$cargo_version" != "$tag_version" ]; then
+            echo "::error::Tag v$tag_version does not match Cargo.toml version $cargo_version. Bump Cargo.toml, commit, then re-tag."
+            exit 1
+          fi
+          echo "Versions agree."
+
   build:
+    # check-version only runs on tags; always() lets normal pushes build anyway,
+    # but a FAILED guard still blocks the build.
+    if: always() && needs.check-version.result != 'failure'
     strategy:
       fail-fast: false
       matrix:
@@ -21,6 +45,7 @@ jobs:
           - { name: windows,         os: windows-latest, label: Windows, readme: packaging/README-windows.txt }
           - { name: linux,           os: ubuntu-22.04,   label: Linux,   readme: packaging/README-linux.txt }
     name: Build ${{ matrix.name }}
+    needs: [check-version]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -43,42 +68,68 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Package plugins
+      - name: Lint
+        if: matrix.name == 'linux'
+        run: cargo clippy --release -- -D warnings
+
+      - name: Build and bundle
         run: |
-          runner_name=${{ matrix.name }}
-          if [[ $runner_name = 'macos-universal' ]]; then
+          if [[ "${{ matrix.name }}" = 'macos-universal' ]]; then
             export MACOSX_DEPLOYMENT_TARGET=10.13
             cargo xtask bundle-universal chorus --release
           else
             cargo xtask bundle chorus --release
           fi
 
-      # bundler.toml maps package `chorus` -> bundle name `Crimson`,
-      # so target/bundled/ already contains Crimson.vst3 / Crimson.clap.
-      - name: Assemble release folder
+      # bundler.toml maps package `chorus` -> bundle name `Crimson`.
+      # Zip NAME is stable so the site can link to /releases/latest/download/.
+      # The version lives INSIDE: the folder name and the README.
+      - name: Package
         run: |
           version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
-          echo "VERSION=$version" >> "$GITHUB_ENV"
-          folder="Crimson-${version}-${{ matrix.label }}"
-          echo "FOLDER=$folder" >> "$GITHUB_ENV"
+          inner="Crimson-${version}-${{ matrix.label }}"
+          zipname="Crimson-${{ matrix.label }}.zip"
+          echo "ZIPNAME=$zipname" >> "$GITHUB_ENV"
 
-          mkdir -p "out/$folder"
-          cp -R target/bundled/* "out/$folder/"
-          cp "${{ matrix.readme }}" "out/$folder/README.txt"
-          [ -f LICENSE ] && cp LICENSE "out/$folder/LICENSE.txt"
+          mkdir -p "staging/$inner"
+          cp -R target/bundled/* "staging/$inner/"
+          sed "s/__VERSION__/v${version}/" "${{ matrix.readme }}" > "staging/$inner/README.txt"
+          if [ -f LICENSE ]; then cp LICENSE "staging/$inner/LICENSE.txt"; fi
 
-          echo "--- packaged ---"
-          ls -la "out/$folder"
+          cd staging
+          if [[ "${{ matrix.os }}" == windows-* ]]; then
+            powershell -Command "Compress-Archive -Path '$inner' -DestinationPath '../$zipname'"
+          else
+            zip -r -q "../$zipname" "$inner"
+          fi
 
-      - name: Verify bundle names
+      - name: Verify
         run: |
-          cd "out/$FOLDER"
-          test -e Crimson.vst3 || { echo "::error::Crimson.vst3 missing — is bundler.toml present at the repo root?"; exit 1; }
+          cd staging/*/
+          test -e Crimson.vst3 || { echo "::error::Crimson.vst3 missing - is bundler.toml at the repo root?"; exit 1; }
           test -e Crimson.clap || { echo "::error::Crimson.clap missing"; exit 1; }
-          test -e README.txt   || { echo "::error::README.txt missing"; exit 1; }
-          grep -q "quarantine" README.txt || echo "::warning::macOS Gatekeeper note not found in README"
+          grep -q "^CRIMSON  v" README.txt || { echo "::error::README version placeholder was not substituted"; exit 1; }
+          echo "Packaged OK:"; ls -la
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.FOLDER }}
-          path: out/${{ env.FOLDER }}/*
+          name: ${{ env.ZIPNAME }}
+          path: ${{ env.ZIPNAME }}
+
+  release:
+    name: Publish release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - run: ls -la dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          generate_release_notes: true

@@ -228,7 +228,7 @@ impl Plugin for Chorus {
     const VENDOR: &'static str = "Pyfessional";
     const URL: &'static str = "https://pyfessional.tech";
     const EMAIL: &'static str = "contact@pyfessional.tech";
-    const VERSION: &'static str = "1.0.0";
+    const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
     const AUDIO_IO_LAYOUTS: &'static [AudioIOLayout] = &[AudioIOLayout {
         main_input_channels: NonZeroU32::new(2),
