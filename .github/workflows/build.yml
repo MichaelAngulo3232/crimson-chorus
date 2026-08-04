@@ -90,6 +90,7 @@ jobs:
           inner="Crimson-${version}-${{ matrix.label }}"
           zipname="Crimson-${{ matrix.label }}.zip"
           echo "ZIPNAME=$zipname" >> "$GITHUB_ENV"
+          echo "PKGVERSION=$version" >> "$GITHUB_ENV"
 
           mkdir -p "staging/$inner"
           cp -R target/bundled/* "staging/$inner/"
@@ -108,7 +109,9 @@ jobs:
           cd staging/*/
           test -e Crimson.vst3 || { echo "::error::Crimson.vst3 missing - is bundler.toml at the repo root?"; exit 1; }
           test -e Crimson.clap || { echo "::error::Crimson.clap missing"; exit 1; }
-          grep -q "^CRIMSON  v" README.txt || { echo "::error::README version placeholder was not substituted"; exit 1; }
+          grep -q "^CRIMSON  v${PKGVERSION}$" README.txt || {
+            echo "::error::README header is '$(head -1 README.txt)' but should be 'CRIMSON  v${PKGVERSION}'. The packaging/README-*.txt files must contain the literal __VERSION__ placeholder."
+            exit 1; }
           echo "Packaged OK:"; ls -la
 
       - uses: actions/upload-artifact@v4

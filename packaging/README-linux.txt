@@ -1,4 +1,4 @@
-CRIMSON  v1.0
+CRIMSON  __VERSION__
 A warm metallic vocal chorus, built to sit behind pitch correction.
 Pyfessional  ·  https://pyfessional.tech
 
