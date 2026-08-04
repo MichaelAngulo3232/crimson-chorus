@@ -230,13 +230,26 @@ impl Plugin for Chorus {
     const EMAIL: &'static str = "contact@pyfessional.tech";
     const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
-    const AUDIO_IO_LAYOUTS: &'static [AudioIOLayout] = &[AudioIOLayout {
-        main_input_channels: NonZeroU32::new(2),
-        main_output_channels: NonZeroU32::new(2),
-        aux_input_ports: &[],
-        aux_output_ports: &[],
-        ..AudioIOLayout::const_default()
-    }];
+    // Stereo first — nih-plug uses the first entry as the default when the host
+    // can't or doesn't pick. Mono is declared so hosts with explicit mono
+    // channel types can instantiate directly, instead of trying to do the work on its own
+
+    const AUDIO_IO_LAYOUTS: &'static [AudioIOLayout] = &[
+        AudioIOLayout {
+            main_input_channels: NonZeroU32::new(2),
+            main_output_channels: NonZeroU32::new(2),
+            aux_input_ports: &[],
+            aux_output_ports: &[],
+            ..AudioIOLayout::const_default()
+        },
+        AudioIOLayout {
+            main_input_channels: NonZeroU32::new(1),
+            main_output_channels: NonZeroU32::new(1),
+            aux_input_ports: &[],
+            aux_output_ports: &[],
+            ..AudioIOLayout::const_default()
+        },
+    ];
 
     type SysExMessage = ();
     type BackgroundTask = ();
@@ -344,6 +357,7 @@ impl ClapPlugin for Chorus {
     const CLAP_FEATURES: &'static [ClapFeature] = &[
         ClapFeature::AudioEffect,
         ClapFeature::Stereo,
+        ClapFeature::Mono,
         ClapFeature::Custom("chorus"),
     ];
 }

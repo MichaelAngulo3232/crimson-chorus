@@ -35,7 +35,7 @@ wrapper around an existing engine.
   deliberately brightening at longer delays (the opposite of a vintage
   bucket-brigade chorus) for a distinct timbral movement.
 - **Band-limited LFO shapers** — sine, triangle, square, and sawtooth are each
-  synthesized from a truncated Fourier series (odd harmonics to the 7th) and
+  synthesized from a truncated Fourier series and
   peak-normalized, so switching shapes never changes the modulation depth or
   steps the delay line.
 - **A stable feedback path** — the filter chain sits inside the loop, so every
