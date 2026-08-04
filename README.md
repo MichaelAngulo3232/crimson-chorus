@@ -15,7 +15,6 @@ Free and open source. No account, no signup. More at [pyfessional.tech](https://
 
 **Formats:** VST3 · CLAP
 **Platforms:** macOS · Windows · Linux
-**Status:** 1.0.2 — stable
 
 ## What's interesting here
 
