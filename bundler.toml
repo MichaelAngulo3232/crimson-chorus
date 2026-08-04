@@ -1,2 +1,6 @@
+# Metadata for NIH-plug's `cargo xtask bundle <package>` bundler.
+# Without this, the package name (`chorus`) becomes the bundle name.
+# With it, `cargo xtask bundle chorus --release` emits Crimson.vst3 / Crimson.clap.
+
 [chorus]
 name = "Crimson"

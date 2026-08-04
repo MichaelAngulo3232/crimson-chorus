@@ -3,6 +3,7 @@ name: Build
 on:
   push:
     branches: [main, master]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -16,9 +17,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: macos-universal, os: macos-latest }
-          - { name: windows,         os: windows-latest }
-          - { name: linux,           os: ubuntu-22.04 }
+          - { name: macos-universal, os: macos-latest,   label: macOS,   readme: packaging/README-macos.txt }
+          - { name: windows,         os: windows-latest, label: Windows, readme: packaging/README-windows.txt }
+          - { name: linux,           os: ubuntu-22.04,   label: Linux,   readme: packaging/README-linux.txt }
     name: Build ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     steps:
@@ -52,12 +53,32 @@ jobs:
             cargo xtask bundle chorus --release
           fi
 
-      - name: Prepare artifact
+      # bundler.toml maps package `chorus` -> bundle name `Crimson`,
+      # so target/bundled/ already contains Crimson.vst3 / Crimson.clap.
+      - name: Assemble release folder
         run: |
-          mkdir -p out
-          cp -R target/bundled/* out/ 2>/dev/null || true
+          version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          folder="Crimson-${version}-${{ matrix.label }}"
+          echo "FOLDER=$folder" >> "$GITHUB_ENV"
+
+          mkdir -p "out/$folder"
+          cp -R target/bundled/* "out/$folder/"
+          cp "${{ matrix.readme }}" "out/$folder/README.txt"
+          [ -f LICENSE ] && cp LICENSE "out/$folder/LICENSE.txt"
+
+          echo "--- packaged ---"
+          ls -la "out/$folder"
+
+      - name: Verify bundle names
+        run: |
+          cd "out/$FOLDER"
+          test -e Crimson.vst3 || { echo "::error::Crimson.vst3 missing — is bundler.toml present at the repo root?"; exit 1; }
+          test -e Crimson.clap || { echo "::error::Crimson.clap missing"; exit 1; }
+          test -e README.txt   || { echo "::error::README.txt missing"; exit 1; }
+          grep -q "quarantine" README.txt || echo "::warning::macOS Gatekeeper note not found in README"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: crimson-${{ matrix.name }}
-          path: out/*
+          name: ${{ env.FOLDER }}
+          path: out/${{ env.FOLDER }}/*
