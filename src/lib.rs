@@ -17,6 +17,7 @@ const DEFAULT_RATE_HZ: f32 = 1.60;
 const DEFAULT_DEPTH_SECONDS: f32 = 0.0041; // 4.1 ms — stored in seconds, not ms
 const DEFAULT_FEEDBACK: f32 = 0.44;
 const DEFAULT_MIX: f32 = 0.40;
+const INTERP_MARGIN: usize = 2; // slack past the interpolator's furthest read
 
 #[derive(Enum, Debug, PartialEq, Clone, Copy)]
 enum WaveType {
@@ -140,10 +141,28 @@ impl ChorusVoice {
         self.delay_buffer[self.write_pos] = input + feedback * self.fb_state;
 
         let read_pos = (self.write_pos as f32 - mod_delay + len as f32) % len as f32;
-        let index_a = read_pos.floor() as usize;
-        let index_b = if index_a + 1 >= len { 0 } else { index_a + 1 };
+        let index_a = (read_pos.floor() as usize) % len;
+
+        // Cubic Lagrange interpolation on 4 taps. 
+        // Coefficient denominators (-6, 2, -2, 6) come from the fixed tap positions at -1, 0, 1, 2
         let frac = read_pos - index_a as f32;
-        let delayed = (1.0 - frac) * self.delay_buffer[index_a] + frac * self.delay_buffer[index_b];
+
+        let a = frac + 1.0;
+        let b = frac;
+        let c = frac - 1.0;
+        let d = frac - 2.0;
+
+        let c0 = (b*c*d)/-6.0;
+        let c1 = (a*c*d)/2.0;
+        let c2 = (a*b*d)/-2.0;
+        let c3 = (a*b*c)/6.0;
+
+        let x0 = self.delay_buffer[(index_a + len - 1) % len];
+        let x1 = self.delay_buffer[index_a];
+        let x2 = self.delay_buffer[(index_a + len + 1) % len];
+        let x3 = self.delay_buffer[(index_a + len + 2) % len];
+
+        let delayed = c0*x0 + c1*x1 + c2*x2 + c3*x3;
 
         // One-pole low-pass on the wet. Coefficient is computed by the caller
         // (it needs the sample rate); this is just the filter.
@@ -180,7 +199,7 @@ struct Chorus {
 impl Default for Chorus {
     fn default() -> Self {
         let default_sr = 48_000.0_f32;
-        let max_delay_samples = ((BASE_DELAY_SECONDS + MAX_MOD_DEPTH_SECONDS) * default_sr).ceil() as usize + 2;
+        let max_delay_samples = ((BASE_DELAY_SECONDS + MAX_MOD_DEPTH_SECONDS) * default_sr).ceil() as usize + INTERP_MARGIN;
         Self {
             voices: vec![ChorusVoice::new(max_delay_samples); 2],
             lfo_phase: 0.0,
@@ -271,7 +290,7 @@ impl Plugin for Chorus {
         self.sample_rate = buffer_config.sample_rate;
 
         let max_delay_samples =
-            ((BASE_DELAY_SECONDS + MAX_MOD_DEPTH_SECONDS) * self.sample_rate).ceil() as usize + 2;
+            ((BASE_DELAY_SECONDS + MAX_MOD_DEPTH_SECONDS) * self.sample_rate).ceil() as usize + INTERP_MARGIN;
         let channels = audio_io_layout
             .main_output_channels
             .map(|c| c.get() as usize)

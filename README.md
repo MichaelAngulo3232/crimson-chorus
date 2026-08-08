@@ -107,7 +107,7 @@ bundle name `Crimson`.
 ### Releasing
 
 ```
-./release.sh 1.1.0
+./release.sh <version>     # e.g. ./release.sh 1.2.0
 ```
 
 Bumps `Cargo.toml`, runs clippy and a release build locally, commits, tags, and
