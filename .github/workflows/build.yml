@@ -85,7 +85,7 @@ jobs:
       # notarization, then staple Apple's approval onto each bundle so
       # macOS opens them with no Gatekeeper warning. Normal pushes and
       # PRs skip this and build unsigned, same as before.
-      - name: Sign and notarize (macOS)
+      - name: Sign, notarize and build installer (macOS)
         if: matrix.name == 'macos-universal' && startsWith(github.ref, 'refs/tags/v')
         env:
           CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
@@ -129,6 +129,65 @@ jobs:
             xcrun stapler validate "$p"
           done
 
+          # 5. Build the installer: one .pkg that puts each format into the
+          #    system plug-in folders. It's signed with the Developer ID
+          #    Installer certificate, whose name is IDENTITY with "Installer"
+          #    in place of "Application".
+          INSTALLER_IDENTITY="${IDENTITY/Application/Installer}"
+          VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
+          PKGWORK="$RUNNER_TEMP/pkg"
+          mkdir -p "$PKGWORK/vst3" "$PKGWORK/clap"
+          ditto target/bundled/Crimson.vst3 "$PKGWORK/vst3/Crimson.vst3"
+          ditto target/bundled/Crimson.clap "$PKGWORK/clap/Crimson.clap"
+
+          for fmt in vst3 clap; do
+            # Not relocatable: always install into the plug-in folder, even if
+            # macOS finds another copy of the bundle somewhere else on disk.
+            pkgbuild --analyze --root "$PKGWORK/$fmt" "$PKGWORK/$fmt.plist"
+            if plutil -extract 0.RootRelativeBundlePath raw -o - "$PKGWORK/$fmt.plist" >/dev/null 2>&1; then
+              plutil -replace 0.BundleIsRelocatable -bool NO "$PKGWORK/$fmt.plist"
+            fi
+          done
+          pkgbuild --root "$PKGWORK/vst3" --component-plist "$PKGWORK/vst3.plist" \
+            --identifier tech.pyfessional.crimson.vst3 --version "$VERSION" \
+            --install-location /Library/Audio/Plug-Ins/VST3 "$PKGWORK/Crimson-VST3.pkg"
+          pkgbuild --root "$PKGWORK/clap" --component-plist "$PKGWORK/clap.plist" \
+            --identifier tech.pyfessional.crimson.clap --version "$VERSION" \
+            --install-location /Library/Audio/Plug-Ins/CLAP "$PKGWORK/Crimson-CLAP.pkg"
+
+          # The installer window: title, and a choice per format (both on by default).
+          cat > "$PKGWORK/distribution.xml" <<XML
+          <?xml version="1.0" encoding="utf-8"?>
+          <installer-gui-script minSpecVersion="2">
+              <title>Crimson ${VERSION}</title>
+              <options customize="allow" require-scripts="false" hostArchitectures="x86_64,arm64"/>
+              <domains enable_localSystem="true"/>
+              <choices-outline>
+                  <line choice="vst3"/>
+                  <line choice="clap"/>
+              </choices-outline>
+              <choice id="vst3" title="Crimson VST3" description="Installs Crimson.vst3 into /Library/Audio/Plug-Ins/VST3.">
+                  <pkg-ref id="tech.pyfessional.crimson.vst3"/>
+              </choice>
+              <choice id="clap" title="Crimson CLAP" description="Installs Crimson.clap into /Library/Audio/Plug-Ins/CLAP.">
+                  <pkg-ref id="tech.pyfessional.crimson.clap"/>
+              </choice>
+              <pkg-ref id="tech.pyfessional.crimson.vst3" version="${VERSION}">Crimson-VST3.pkg</pkg-ref>
+              <pkg-ref id="tech.pyfessional.crimson.clap" version="${VERSION}">Crimson-CLAP.pkg</pkg-ref>
+          </installer-gui-script>
+          XML
+
+          productbuild --distribution "$PKGWORK/distribution.xml" --package-path "$PKGWORK" \
+            --sign "$INSTALLER_IDENTITY" --keychain "$KEYCHAIN" --timestamp Crimson-macOS.pkg
+
+          # 6. Notarize and staple the installer, then check Gatekeeper accepts it.
+          xcrun notarytool submit Crimson-macOS.pkg \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" \
+            --wait
+          xcrun stapler staple Crimson-macOS.pkg
+          xcrun stapler validate Crimson-macOS.pkg
+          spctl --assess --type install -vv Crimson-macOS.pkg
+
       # bundler.toml maps package `chorus` -> bundle name `Crimson`.
       # Zip NAME is stable so the site can link to /releases/latest/download/.
       # The version lives INSIDE: the folder name and the README.
@@ -167,6 +226,14 @@ jobs:
           name: ${{ env.ZIPNAME }}
           path: ${{ env.ZIPNAME }}
 
+      - name: Upload installer (macOS)
+        if: matrix.name == 'macos-universal' && startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: Crimson-macOS.pkg
+          path: Crimson-macOS.pkg
+          if-no-files-found: error
+
   release:
     name: Publish release
     needs: build
@@ -182,5 +249,7 @@ jobs:
 
       - uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.zip
+          files: |
+            dist/*.zip
+            dist/*.pkg
           generate_release_notes: true

@@ -5,6 +5,14 @@ Pyfessional  ·  https://pyfessional.tech
 
 INSTALL
 -------
+Easiest: download the installer, Crimson-macOS.pkg, from
+    https://github.com/MichaelAngulo3232/crimson-chorus/releases/latest
+and double-click it. It installs both formats for every user on
+this Mac. If you installed Crimson by hand before, delete the old
+copies in ~/Library/Audio/Plug-Ins so your DAW doesn't list it twice.
+
+Or install by hand from this zip:
+
 1. Copy Crimson.vst3 into:
        ~/Library/Audio/Plug-Ins/VST3/
 
