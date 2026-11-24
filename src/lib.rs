@@ -1,3 +1,10 @@
+// nih_export_vst3! expands to a macro inside nih-plug's VST3 bindings (vst3_com::vtable)
+// that newer Rust (1.100+) flags with semicolon_in_expressions_from_non_local_macros.
+// The code is in nih-plug, not Crimson, so allow it here, or `clippy -D warnings` fails on
+// CI. unknown_lints keeps older Rust (which doesn't know that lint name yet) from failing.
+#![allow(unknown_lints)]
+#![allow(semicolon_in_expressions_from_non_local_macros)]
+
 use nih_plug::prelude::*;
 use std::sync::Arc;
 use nih_plug_egui::EguiState;
