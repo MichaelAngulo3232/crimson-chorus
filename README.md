@@ -71,18 +71,13 @@ Copy the format your DAW uses into the matching folder:
 
 Then rescan plugins in your DAW.
 
-### If macOS says the plugin is damaged
+The macOS build is signed with an Apple Developer ID and notarized, so it
+loads with no Gatekeeper warning.
 
-The file is fine — that's Gatekeeper. Crimson isn't code-signed with an Apple
-Developer ID yet, so macOS quarantines it after download. Clear the flag:
+### If Windows SmartScreen warns you
 
-```
-xattr -rd com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Crimson.vst3
-xattr -rd com.apple.quarantine ~/Library/Audio/Plug-Ins/CLAP/Crimson.clap
-```
-
-Run only the line for the format you installed. On Windows, SmartScreen will
-warn for the same reason — choose **More info → Run anyway**.
+The Windows build isn't code-signed yet, so SmartScreen flags it as from an
+unknown publisher. Choose **More info → Run anyway**.
 
 ### Compatibility
 

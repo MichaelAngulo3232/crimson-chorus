@@ -81,6 +81,54 @@ jobs:
             cargo xtask bundle chorus --release
           fi
 
+      # Releases only: sign with the Developer ID, send to Apple for
+      # notarization, then staple Apple's approval onto each bundle so
+      # macOS opens them with no Gatekeeper warning. Normal pushes and
+      # PRs skip this and build unsigned, same as before.
+      - name: Sign and notarize (macOS)
+        if: matrix.name == 'macos-universal' && startsWith(github.ref, 'refs/tags/v')
+        env:
+          CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          IDENTITY: ${{ secrets.MACOS_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+        run: |
+          [ -n "$CERT_P12" ] || { echo "::error::MACOS_CERT_P12 secret is missing. Add the signing secrets before tagging a release."; exit 1; }
+
+          # 1. Load the certificate into a temporary keychain on this runner.
+          KEYCHAIN="$RUNNER_TEMP/signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "$CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/cert.p12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+          rm "$RUNNER_TEMP/cert.p12"
+
+          PLUGINS=(target/bundled/Crimson.vst3 target/bundled/Crimson.clap)
+
+          # 2. Sign. --timestamp and --options runtime are required by notarization.
+          for p in "${PLUGINS[@]}"; do
+            codesign --force --timestamp --options runtime --keychain "$KEYCHAIN" --sign "$IDENTITY" "$p"
+          done
+
+          # 3. Send to Apple and wait for the verdict.
+          ditto -c -k --keepParent target/bundled "$RUNNER_TEMP/notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_PASSWORD" \
+            --wait
+
+          # 4. Staple the approval onto each bundle. Fails (and blocks the
+          #    release) if Apple rejected the upload.
+          for p in "${PLUGINS[@]}"; do
+            xcrun stapler staple "$p"
+            xcrun stapler validate "$p"
+          done
+
       # bundler.toml maps package `chorus` -> bundle name `Crimson`.
       # Zip NAME is stable so the site can link to /releases/latest/download/.
       # The version lives INSIDE: the folder name and the README.

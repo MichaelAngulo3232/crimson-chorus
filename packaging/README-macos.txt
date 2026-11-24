@@ -14,25 +14,6 @@ INSTALL
 2. Restart your DAW and rescan plugins.
 
 
-IF MACOS SAYS THE PLUGIN IS DAMAGED
------------------------------------
-If you see "Crimson.vst3 is damaged and can't be opened" or
-"cannot be opened because Apple cannot check it for malicious
-software" — the file is fine. That is Gatekeeper.
-
-Crimson is not yet code-signed with an Apple Developer ID, so
-macOS quarantines it after download. Clear the flag in Terminal:
-
-    xattr -rd com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Crimson.vst3
-    xattr -rd com.apple.quarantine ~/Library/Audio/Plug-Ins/CLAP/Crimson.clap
-
-Run only the line for the format you installed. Then rescan in
-your DAW.
-
-If you would rather not run that, the full source is public and
-you can build it yourself — link at the bottom.
-
-
 COMPATIBILITY
 -------------
 Formats:  VST3, CLAP
